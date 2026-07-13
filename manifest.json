@@ -1,0 +1,12 @@
+{
+  "name": "coinjoin",
+  "title": "CoinJoin / Batch Signing over USB",
+  "version": "0.1.0",
+  "description": "Pre-approved remote signing over USB: SLIP-19 ownership proofs and policy-checked PSBT signing for WabiSabi coinjoin (and plain batched multi-wallet transactions). Host-proposed policy approved on the device, Trezor-style.",
+  "author": "kravens",
+  "krux_compat": ">=24.07.0",
+  "devices": ["all"],
+  "entry": "krux.extensions.coinjoin",
+  "requires_hooks": ["sign_menu_entries"],
+  "provides": ["CoinJoin USB"]
+}
