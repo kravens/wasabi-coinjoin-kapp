@@ -38,15 +38,20 @@ def _label():
         return "CoinJoin USB"
 
 
+def run(ctx):
+    """Kapp-style entry point (selfcustody/krux#485): every Krux app exposes
+    ``run(ctx)``. Building this in now means the same code drops into the
+    signed-apps (kapps) distribution once that framework lands, with no rework
+    — the only change is packaging (frozen extension today, signed .mpy then).
+    """
+    from .signer import CoinJoinSigner
+
+    return CoinJoinSigner(ctx).run_signer()
+
+
 def menu_entries(ctx):
     """Sign-submenu entries this extension contributes: (label, handler)."""
-
-    def launch():
-        from .signer import CoinJoinSigner
-
-        return CoinJoinSigner(ctx).run_signer()
-
-    return [(_label(), launch)]
+    return [(_label(), lambda: run(ctx))]
 
 
 # Self-register with the host's extension registry when present (the upstream

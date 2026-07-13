@@ -7,6 +7,13 @@
   "krux_compat": ">=24.07.0",
   "devices": ["all"],
   "entry": "krux.extensions.coinjoin",
+  "run": "krux.extensions.coinjoin:run",
   "requires_hooks": ["sign_menu_entries"],
-  "provides": ["CoinJoin USB"]
+  "provides": ["CoinJoin USB"],
+  "distribution": {
+    "target": "https://github.com/selfcustody/kapps",
+    "framework_pr": "https://github.com/selfcustody/krux/pull/485",
+    "signing": "PGP signature + SHA256 of released .mpy, verified on-device against SIGNER_PUBKEY",
+    "note": "Ships as a build-time frozen extension until the kapps signed-apps framework merges; run(ctx) entry point is already kapp-compatible."
+  }
 }
