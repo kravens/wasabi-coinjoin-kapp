@@ -531,7 +531,7 @@ class CoinJoinSigner(Page):
 
     def _draw_status(self):
         from krux.themes import theme
-        from krux.display import FONT_HEIGHT, STATUS_BAR_HEIGHT
+        from krux.display import BOTTOM_LINE, FONT_HEIGHT, STATUS_BAR_HEIGHT
 
         disp = self.ctx.display
         key = self.ctx.wallet.key
@@ -547,7 +547,6 @@ class CoinJoinSigner(Page):
                 key.fingerprint_hex_str(True),
                 key.derivation_str(True),
                 _t("Rounds") + ": %d/%d" % (self.rounds_used, self.max_rounds),
-                _t("Back"),
             ]
         else:
             disp.draw_hcentered_text(NAME, 2)
@@ -557,7 +556,6 @@ class CoinJoinSigner(Page):
                 # From the device's view the host is what we wait on: Wasabi
                 # must connect and propose the policy before we can authorize.
                 _t("Waiting for Wasabi Wallet"),
-                _t("Back"),
             ]
         # Wasabi "W" logo, centered ~1/3 screen wide. Static+dim while waiting,
         # breathing once authorized (_serve pulses it).
@@ -566,9 +564,9 @@ class CoinJoinSigner(Page):
         y0 = top + FONT_HEIGHT // 2
         self._logo = (cell, x0, y0)
         self._draw_logo()
-        disp.draw_hcentered_text(
-            "\n".join(footer), y0 + cell * _LOGO_H + FONT_HEIGHT
-        )
+        disp.draw_hcentered_text("\n".join(footer), y0 + cell * _LOGO_H + FONT_HEIGHT)
+        # Krux pins the navigation hint to the bottom line.
+        disp.draw_hcentered_text(_t("Back"), BOTTOM_LINE)
 
     def _draw_logo(self):
         """Draws the Wasabi logo at the current breathing intensity, in the
