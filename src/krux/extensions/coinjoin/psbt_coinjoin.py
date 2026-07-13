@@ -126,6 +126,7 @@ class CoinJoinPSBTSigner(PSBTSigner):
         own_output_vbytes_x100 = 0
         own_self_transfer_value = 0
         input_types = []
+        own_input_indices = set()
 
         for i, inp in enumerate(self.psbt.inputs):
             if not inp.witness_utxo:
@@ -137,6 +138,10 @@ class CoinJoinPSBTSigner(PSBTSigner):
             if self._coinjoin_scope_is_own(inp, script_type, account_prefix):
                 own_input_value += inp.witness_utxo.value
                 own_input_vbytes_x100 += self._coinjoin_input_vbytes_x100(script_type)
+                own_input_indices.add(i)
+        # Recorded so sign_coinjoin can prove afterwards that only these inputs
+        # were signed - never a foreign participant's input.
+        self._own_input_indices = own_input_indices
 
         if own_input_value <= 0:
             raise ValueError("coinjoin PSBT has no own inputs")
@@ -178,7 +183,30 @@ class CoinJoinPSBTSigner(PSBTSigner):
             "fee_leak": leak,
         }
 
+    @staticmethod
+    def _sig_fingerprint(inp):
+        """Everything self.sign() could write onto an input if it signed it."""
+        return (
+            tuple(sorted(inp.partial_sigs.keys())),
+            inp.final_scriptsig,
+            inp.final_scriptwitness,
+            inp.taproot_key_sig,
+            tuple(sorted(inp.taproot_sigs.keys())),
+        )
+
     def sign_coinjoin(self, policy=None, trim=True):
         """Signs a policy-approved CoinJoin PSBT."""
-        self.coinjoin_amounts(policy)
+        self.coinjoin_amounts(policy)  # validates, sets self._own_input_indices
+        own = self._own_input_indices
+        before = {
+            i: self._sig_fingerprint(inp)
+            for i, inp in enumerate(self.psbt.inputs)
+            if i not in own
+        }
         self.sign(trim=trim)
+        # Money-safety backstop: signing must touch only our own inputs. If a bug
+        # anywhere ever produced a signature over another participant's input,
+        # refuse to emit the PSBT rather than hand out that signature.
+        for i, inp in enumerate(self.psbt.inputs):
+            if i not in own and self._sig_fingerprint(inp) != before[i]:
+                raise ValueError("refusing coinjoin: foreign input %d signed" % i)

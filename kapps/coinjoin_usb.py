@@ -356,6 +356,7 @@ class CoinJoinPSBTSigner(PSBTSigner):
         own_out_vb_x100 = 0
         own_self_transfer = 0
         input_types = []
+        own_input_indices = set()
 
         for i, inp in enumerate(self.psbt.inputs):
             if not inp.witness_utxo:
@@ -367,6 +368,10 @@ class CoinJoinPSBTSigner(PSBTSigner):
             if self._coinjoin_scope_is_own(inp, script_type, account_prefix):
                 own_in_value += inp.witness_utxo.value
                 own_in_vb_x100 += self._in_vbytes_x100(script_type)
+                own_input_indices.add(i)
+        # Recorded so sign_coinjoin can prove afterwards that only these inputs
+        # were signed - never a foreign participant's input.
+        self._own_input_indices = own_input_indices
 
         if own_in_value <= 0:
             raise ValueError("coinjoin PSBT has no own inputs")
@@ -405,9 +410,35 @@ class CoinJoinPSBTSigner(PSBTSigner):
             "fee_leak": leak,
         }
 
+    @staticmethod
+    def _sig_fingerprint(inp):
+        # Everything self.sign() could write onto an input if it signed it.
+        return (
+            tuple(sorted(inp.partial_sigs.keys())),
+            inp.final_scriptsig,
+            inp.final_scriptwitness,
+            inp.taproot_key_sig,
+            tuple(sorted(inp.taproot_sigs.keys())),
+        )
+
     def sign_coinjoin(self, policy=None, trim=True):
-        self.coinjoin_amounts(policy)
+        self.coinjoin_amounts(policy)  # validates policy, sets _own_input_indices
+        own = self._own_input_indices
+        # Snapshot every foreign input's signature state before signing.
+        before = {
+            i: self._sig_fingerprint(inp)
+            for i, inp in enumerate(self.psbt.inputs)
+            if i not in own
+        }
         self.sign(trim=trim)
+        # Money-safety backstop: signing must touch only our own inputs. If a bug
+        # anywhere ever produced a signature over another participant's input,
+        # refuse to emit the PSBT rather than hand out that signature.
+        for i, inp in enumerate(self.psbt.inputs):
+            if i in own:
+                continue
+            if self._sig_fingerprint(inp) != before[i]:
+                raise ValueError("refusing coinjoin: foreign input %d signed" % i)
 
 
 # --- USB signer page ------------------------------------------------------
@@ -420,6 +451,16 @@ _OK = b"\x00"
 _ERR = b"\x01"
 _SCRIPT_TYPES = {0: "p2wpkh", 1: "p2tr"}
 _MAX_ROUNDS_CAP = 0xFFFF
+
+# Device-side hard safety envelope for an authorization. The host proposes the
+# policy and the user confirms it on-screen, but these bounds are enforced
+# regardless: no proposal - malicious, fat-fingered, or blindly approved - can
+# open a session that permits draining funds. Total value at risk over a
+# session is bounded by (per-round fee leak) x max_rounds, and per-round leak is
+# bounded by the fee-rate cap; the self-transfer floor keeps the rest on-wallet.
+_MIN_SAFE_SELF_TRANSFER = 50  # percent; below this a session could drain
+_MAX_SAFE_FEE_RATE = 250  # sat/vB; above this is congestion nobody coinjoins at
+_MAX_SAFE_ROUNDS = 500  # caps cumulative fee bleed across a session
 
 
 def _t(text):
@@ -667,6 +708,13 @@ class CoinJoinSigner(Page):
             raise ValueError("invalid self-transfer percent")
         if max_rounds == 0 or max_rounds > _MAX_ROUNDS_CAP:
             raise ValueError("invalid max rounds")
+        # Refuse a policy outside the safe envelope even if the user would tap Yes.
+        if min_self_transfer_pct < _MIN_SAFE_SELF_TRANSFER:
+            raise ValueError("self-transfer floor below safe minimum")
+        if max_fee_rate > _MAX_SAFE_FEE_RATE:
+            raise ValueError("fee-rate cap above safe maximum")
+        if max_rounds > _MAX_SAFE_ROUNDS:
+            raise ValueError("max rounds above safe maximum")
 
         key = self.ctx.wallet.key
         proposal = "\n".join(

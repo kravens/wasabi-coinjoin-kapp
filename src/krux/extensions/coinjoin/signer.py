@@ -58,6 +58,13 @@ _ERR = b"\x01"
 _SCRIPT_TYPES = {0: "p2wpkh", 1: "p2tr"}
 _MAX_ROUNDS_CAP = 0xFFFF
 
+# Device-side hard safety envelope: enforced regardless of what the host
+# proposes or the user approves, so no session can be opened that permits
+# draining funds. See kapps/coinjoin_usb.py for the rationale.
+_MIN_SAFE_SELF_TRANSFER = 50  # percent; below this a session could drain
+_MAX_SAFE_FEE_RATE = 250  # sat/vB; above this is congestion nobody coinjoins at
+_MAX_SAFE_ROUNDS = 500  # caps cumulative fee bleed across a session
+
 
 def _t(text):
     """Translate if the running Krux exposes a catalog, else identity."""
@@ -184,6 +191,13 @@ class CoinJoinSigner(Page):
             raise ValueError("invalid self-transfer percent")
         if max_rounds == 0 or max_rounds > _MAX_ROUNDS_CAP:
             raise ValueError("invalid max rounds")
+        # Refuse a policy outside the safe envelope even if the user would tap Yes.
+        if min_self_transfer_pct < _MIN_SAFE_SELF_TRANSFER:
+            raise ValueError("self-transfer floor below safe minimum")
+        if max_fee_rate > _MAX_SAFE_FEE_RATE:
+            raise ValueError("fee-rate cap above safe maximum")
+        if max_rounds > _MAX_SAFE_ROUNDS:
+            raise ValueError("max rounds above safe maximum")
 
         key = self.ctx.wallet.key
         proposal = "\n".join(

@@ -154,6 +154,41 @@ def test_mixed_psbt_signs_only_own_input(m5stickv):
     assert not psbt.inputs[1].partial_sigs
 
 
+def test_backstop_rejects_foreign_signature(m5stickv):
+    # If signing ever wrote a signature onto a foreign input, the PSBT must not
+    # be emitted. Force that failure by faking a sig onto the foreign input.
+    from embit import ec
+    from kapps.coinjoin_usb import CoinJoinPSBTSigner
+
+    wallet = FakeWallet(_key())
+    signer = CoinJoinPSBTSigner(
+        wallet, _coinjoin_psbt(wallet.key, foreign=True).serialize(), None
+    )
+    real_sign = signer.sign
+
+    def tainted_sign(*a, **k):
+        real_sign(*a, **k)
+        foreign_pub = ec.PrivateKey(b"\x11" * 32).get_public_key()
+        signer.psbt.inputs[1].partial_sigs[foreign_pub] = b"\x30\x00"
+
+    signer.sign = tainted_sign
+    with pytest.raises(ValueError, match="foreign input 1 signed"):
+        signer.sign_coinjoin(_policy(), trim=False)
+
+
+def test_authorize_safety_envelope(mocker, m5stickv):
+    signer = _signer(mocker)
+    signer.prompt = mocker.MagicMock(return_value=True)
+    for body, msg in (
+        (_authorize_body(min_self=10), "self-transfer floor below safe"),
+        (_authorize_body(max_fee=300), "fee-rate cap above safe"),
+        (_authorize_body(max_rounds=1000), "max rounds above safe"),
+    ):
+        with pytest.raises(ValueError, match=msg):
+            signer._dispatch(body)
+    assert not signer.authorized  # nothing in the batch opened a session
+
+
 def test_requires_authorization(mocker, m5stickv):
     signer = _signer(mocker)
     with pytest.raises(ValueError, match="not authorized"):
