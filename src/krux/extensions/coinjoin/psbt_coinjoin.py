@@ -28,6 +28,7 @@ validation happens in ``coinjoin_amounts`` instead. The signing policy is
 supplied by the host and approved on the device (see the signer), never read
 from a device settings menu.
 """
+
 from krux.psbt import PSBTSigner
 from krux.sats_vb import SatsVB
 
@@ -74,11 +75,22 @@ class CoinJoinPSBTSigner(PSBTSigner):
             return derived.xonly() == pub.xonly()
         return derived.key.sec() == pub.sec()
 
-    def _coinjoin_scope_is_own(self, scope, script_type, account_prefix):
-        """Returns true when a PSBT input/output scope belongs to the wallet."""
+    def _coinjoin_scope_is_own(self, scope, script_type, account_prefix, spk):
+        """Returns true when a PSBT input/output scope belongs to the wallet.
+        A scope is ours only if a derivation resolves to our key AND that key's
+        script equals the actual scriptPubKey. The derivation metadata is
+        host-supplied: without the script binding, a host that knows our xpub
+        could label an attacker's output with our derivation and have its value
+        counted as self-transfer - draining funds through a passing policy."""
+        from embit import script
+
         for pub, der in self._coinjoin_derivations(scope, script_type):
             if self._own_coinjoin_derivation(pub, der, script_type, account_prefix):
-                return True
+                expected = (
+                    script.p2tr(pub) if script_type == P2TR else script.p2wpkh(pub)
+                )
+                if expected.data == spk.data:
+                    return True
         return False
 
     def _check_coinjoin_sighashes(self, input_types):
@@ -135,7 +147,9 @@ class CoinJoinPSBTSigner(PSBTSigner):
             if script_type not in allowed_scripts:
                 raise ValueError("unsupported coinjoin input script")
             input_types.append(script_type)
-            if self._coinjoin_scope_is_own(inp, script_type, account_prefix):
+            if self._coinjoin_scope_is_own(
+                inp, script_type, account_prefix, inp.witness_utxo.script_pubkey
+            ):
                 own_input_value += inp.witness_utxo.value
                 own_input_vbytes_x100 += self._coinjoin_input_vbytes_x100(script_type)
                 own_input_indices.add(i)
@@ -150,11 +164,11 @@ class CoinJoinPSBTSigner(PSBTSigner):
             script_type = self.psbt.tx.vout[i].script_pubkey.script_type()
             if script_type not in allowed_scripts:
                 raise ValueError("unsupported coinjoin output script")
-            if self._coinjoin_scope_is_own(out, script_type, account_prefix):
+            if self._coinjoin_scope_is_own(
+                out, script_type, account_prefix, self.psbt.tx.vout[i].script_pubkey
+            ):
                 own_self_transfer_value += self.psbt.tx.vout[i].value
-                own_output_vbytes_x100 += self._coinjoin_output_vbytes_x100(
-                    script_type
-                )
+                own_output_vbytes_x100 += self._coinjoin_output_vbytes_x100(script_type)
 
         leak = own_input_value - own_self_transfer_value
         min_threshold = policy.get("min_self_transfer_pct", 95)

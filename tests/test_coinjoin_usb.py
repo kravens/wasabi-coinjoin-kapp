@@ -2,6 +2,7 @@
 use the kapp test harness (tests.kapps.create_ctx) and Krux's m5stickv fixture.
 Mirrors the kapps convention: import the single-file app as ``kapps.coinjoin_usb``.
 """
+
 import pytest
 
 MNEMONIC = (
@@ -152,6 +153,42 @@ def test_mixed_psbt_signs_only_own_input(m5stickv):
     psbt = PSBT.parse(signer.psbt.serialize())
     assert psbt.inputs[0].partial_sigs
     assert not psbt.inputs[1].partial_sigs
+
+
+def test_forged_self_transfer_output_rejected(m5stickv):
+    # A malicious host that knows our xpub labels an ATTACKER-paying output
+    # with our (valid) derivation metadata. Without binding the derivation to
+    # the actual scriptPubKey this counts as self-transfer and funds drain.
+    from embit import bip32, ec, script
+    from embit.psbt import DerivationPath, PSBT
+    from embit.transaction import Transaction, TransactionInput, TransactionOutput
+    from kapps.coinjoin_usb import CoinJoinPSBTSigner
+
+    wallet = FakeWallet(_key())
+    key = wallet.key
+    input_path = bip32.parse_path("m/84h/1h/0h/0/0")
+    output_path = bip32.parse_path("m/84h/1h/0h/1/0")
+    input_pub = key.root.derive(input_path).key.get_public_key()
+    output_pub = key.root.derive(output_path).key.get_public_key()
+    attacker_pub = ec.PrivateKey(b"\x22" * 32).get_public_key()
+
+    # Output pays the attacker but carries OUR genuine derivation metadata.
+    tx = Transaction(
+        vin=[TransactionInput(b"\x01" * 32, 0)],
+        vout=[TransactionOutput(9600, script.p2wpkh(attacker_pub))],
+    )
+    psbt = PSBT(tx)
+    psbt.inputs[0].witness_utxo = TransactionOutput(10000, script.p2wpkh(input_pub))
+    psbt.inputs[0].bip32_derivations[input_pub] = DerivationPath(
+        key.fingerprint, input_path
+    )
+    psbt.outputs[0].bip32_derivations[output_pub] = DerivationPath(
+        key.fingerprint, output_path
+    )
+
+    signer = CoinJoinPSBTSigner(wallet, psbt.serialize(), None)
+    with pytest.raises(ValueError, match="self-transfer below policy"):
+        signer.sign_coinjoin(_policy(), trim=False)
 
 
 def test_backstop_rejects_foreign_signature(m5stickv):

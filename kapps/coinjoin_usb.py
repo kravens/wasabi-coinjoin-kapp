@@ -30,6 +30,7 @@ The signing policy (round budget, max fee rate, min self-transfer) is proposed
 by the host wallet software and approved physically on the device once per
 session, Trezor-style. There is no device settings menu to pre-configure.
 """
+
 import os
 
 # Kapp convention: don't import sibling modules from the flash app VFS.
@@ -112,7 +113,9 @@ class Link:
     def _read_exact(self, num_bytes, first_timeout_ms):
         chunks = b""
         timeout_ms = first_timeout_ms
-        deadline = time.ticks_add(time.ticks_ms(), first_timeout_ms) if _ON_DEVICE else 0
+        deadline = (
+            time.ticks_add(time.ticks_ms(), first_timeout_ms) if _ON_DEVICE else 0
+        )
         while len(chunks) < num_bytes:
             if _ON_DEVICE:
                 data = self._uart.read(num_bytes - len(chunks))
@@ -155,7 +158,7 @@ class Link:
             byte = self._read_exact(1, timeout_ms)
             if byte is None:
                 return False
-            window = (window + byte)[-len(MAGIC):]
+            window = (window + byte)[-len(MAGIC) :]
             if window == MAGIC:
                 return True
             timeout_ms = _INTERBYTE_TIMEOUT_MS
@@ -311,10 +314,19 @@ class CoinJoinPSBTSigner(PSBTSigner):
             return derived.xonly() == pub.xonly()
         return derived.key.sec() == pub.sec()
 
-    def _coinjoin_scope_is_own(self, scope, script_type, account_prefix):
+    def _coinjoin_scope_is_own(self, scope, script_type, account_prefix, spk):
+        """A scope is ours only if a derivation resolves to our key AND that
+        key's script equals the actual scriptPubKey. The derivation metadata is
+        host-supplied: without the script binding, a host that knows our xpub
+        could label an attacker's output with our derivation and have its value
+        counted as self-transfer - draining funds through a passing policy."""
         for pub, der in self._coinjoin_derivations(scope, script_type):
             if self._own_coinjoin_derivation(pub, der, script_type, account_prefix):
-                return True
+                expected = (
+                    script.p2tr(pub) if script_type == P2TR else script.p2wpkh(pub)
+                )
+                if expected.data == spk.data:
+                    return True
         return False
 
     def _check_coinjoin_sighashes(self, input_types):
@@ -350,7 +362,9 @@ class CoinJoinPSBTSigner(PSBTSigner):
             raise ValueError("coinjoin wallet fingerprint mismatch")
 
         allowed_scripts = policy.get("allowed_scripts", (P2WPKH, P2TR))
-        account_prefix = policy.get("allowed_account_prefix", self.wallet.key.derivation)
+        account_prefix = policy.get(
+            "allowed_account_prefix", self.wallet.key.derivation
+        )
         own_in_value = 0
         own_in_vb_x100 = 0
         own_out_vb_x100 = 0
@@ -365,7 +379,9 @@ class CoinJoinPSBTSigner(PSBTSigner):
             if script_type not in allowed_scripts:
                 raise ValueError("unsupported coinjoin input script")
             input_types.append(script_type)
-            if self._coinjoin_scope_is_own(inp, script_type, account_prefix):
+            if self._coinjoin_scope_is_own(
+                inp, script_type, account_prefix, inp.witness_utxo.script_pubkey
+            ):
                 own_in_value += inp.witness_utxo.value
                 own_in_vb_x100 += self._in_vbytes_x100(script_type)
                 own_input_indices.add(i)
@@ -380,7 +396,9 @@ class CoinJoinPSBTSigner(PSBTSigner):
             script_type = self.psbt.tx.vout[i].script_pubkey.script_type()
             if script_type not in allowed_scripts:
                 raise ValueError("unsupported coinjoin output script")
-            if self._coinjoin_scope_is_own(out, script_type, account_prefix):
+            if self._coinjoin_scope_is_own(
+                out, script_type, account_prefix, self.psbt.tx.vout[i].script_pubkey
+            ):
                 own_self_transfer += self.psbt.tx.vout[i].value
                 own_out_vb_x100 += self._out_vbytes_x100(script_type)
 
@@ -478,7 +496,46 @@ def _t(text):
 # offline from the SVG so the device does no rasterization at runtime.
 _LOGO_W = 50
 _LOGO_H = 38
-_LOGO_RUNS = [[[8,1],[28,1],[40,10]],[[6,3],[26,3],[40,10]],[[4,5],[24,5],[40,10]],[[3,6],[23,6],[40,10]],[[1,9],[21,8],[40,10]],[[0,10],[20,10],[40,10]],[[0,10],[20,10],[40,10]],[[1,9],[21,9],[40,10]],[[1,10],[21,10],[40,10]],[[1,10],[21,10],[40,10]],[[2,10],[21,11]],[[2,10],[22,10]],[[2,11],[22,11]],[[3,10],[23,10]],[[3,11],[23,11]],[[4,10],[23,11]],[[4,11],[24,11]],[[4,11],[24,11]],[[5,11],[25,11]],[[6,43]],[[6,43]],[[7,42]],[[7,42]],[[8,41]],[[9,40]],[[9,40]],[[10,39]],[[11,13],[31,13]],[[12,13],[32,13]],[[13,14],[33,14]],[[14,14],[34,14]],[[15,14],[34,15]],[[16,12],[36,12]],[[17,10],[37,10]],[[18,8],[38,8]],[[19,6],[39,6]],[[20,4],[40,4]],[[22,1],[42,1]]]
+_LOGO_RUNS = [
+    [[8, 1], [28, 1], [40, 10]],
+    [[6, 3], [26, 3], [40, 10]],
+    [[4, 5], [24, 5], [40, 10]],
+    [[3, 6], [23, 6], [40, 10]],
+    [[1, 9], [21, 8], [40, 10]],
+    [[0, 10], [20, 10], [40, 10]],
+    [[0, 10], [20, 10], [40, 10]],
+    [[1, 9], [21, 9], [40, 10]],
+    [[1, 10], [21, 10], [40, 10]],
+    [[1, 10], [21, 10], [40, 10]],
+    [[2, 10], [21, 11]],
+    [[2, 10], [22, 10]],
+    [[2, 11], [22, 11]],
+    [[3, 10], [23, 10]],
+    [[3, 11], [23, 11]],
+    [[4, 10], [23, 11]],
+    [[4, 11], [24, 11]],
+    [[4, 11], [24, 11]],
+    [[5, 11], [25, 11]],
+    [[6, 43]],
+    [[6, 43]],
+    [[7, 42]],
+    [[7, 42]],
+    [[8, 41]],
+    [[9, 40]],
+    [[9, 40]],
+    [[10, 39]],
+    [[11, 13], [31, 13]],
+    [[12, 13], [32, 13]],
+    [[13, 14], [33, 14]],
+    [[14, 14], [34, 14]],
+    [[15, 14], [34, 15]],
+    [[16, 12], [36, 12]],
+    [[17, 10], [37, 10]],
+    [[18, 8], [38, 8]],
+    [[19, 6], [39, 6]],
+    [[20, 4], [40, 4]],
+    [[22, 1], [42, 1]],
+]
 
 
 def _unpack565(color):
@@ -561,10 +618,7 @@ class CoinJoinSigner(Page):
                 link.write_frame(response)
                 # Repaint after a sign (clears the orange 'Signing' screen) or
                 # an authorize (shows the banner), and whenever state changed.
-                if (
-                    frame[0] in (CMD_SIGN, CMD_AUTHORIZE)
-                    or self._status_key() != drawn
-                ):
+                if frame[0] in (CMD_SIGN, CMD_AUTHORIZE) or self._status_key() != drawn:
                     self._draw_status()
                     drawn = self._status_key()
             except Exception:
