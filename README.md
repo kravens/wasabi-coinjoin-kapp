@@ -1,8 +1,10 @@
-# Krux CoinJoin / Batch-Signing USB — a Krux App (kapp)
+# wasabi-coinjoin-kapp — Wasabi Wallet CoinJoin signing as a Krux App
 
-Pre-approved **remote signing over USB** for [Krux](https://github.com/selfcustody/krux):
-SLIP-19 ownership proofs and policy-checked PSBT signing, for WabiSabi coinjoin
-rounds and plain batched (multi-wallet) transactions. Pairs with
+Pre-approved **remote signing over USB** for
+[Wasabi Wallet](https://wasabiwallet.io) on [Krux](https://github.com/selfcustody/krux)
+devices: SLIP-19 ownership proofs and policy-checked PSBT signing, for WabiSabi
+coinjoin rounds and plain batched (multi-wallet) transactions. The device shows
+the Wasabi logo while a session is authorized and while signing. Pairs with
 [Wasabi Wallet `feature/krux-coinjoin`](https://github.com/kravens/WalletWasabi/tree/feature/krux-coinjoin)
 and the [kruxd](https://github.com/kravens/coinjoin.nl/tree/main/kruxd) bridge.
 
@@ -53,8 +55,9 @@ magic so device boot-console noise can't be misread as a frame.
 ```
 
 Copy the `.mpy` + `.mpy.sig` to the device (SD or flash). The device verifies
-the signature against its trusted `SIGNER_PUBKEY`. On the device: enable
-`allow_kapp`, load a wallet, then `Tools > Krux Apps > CoinJoin USB`.
+the signature against its trusted kapp signer key (`KAPP_SIGNER_PUBKEY` on the
+hardened kapps branch, distinct from the firmware signer key). On the device:
+enable `allow_kapp`, load a wallet, then `Tools > Krux Apps > CoinJoin USB`.
 
 ## Tests
 
