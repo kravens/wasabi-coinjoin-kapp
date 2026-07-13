@@ -518,9 +518,12 @@ class CoinJoinSigner(Page):
                 except Exception as e:
                     response = _ERR + str(e).encode()
                 link.write_frame(response)
-                # Always repaint after a sign so the orange 'Signing' screen
-                # clears (even when a sign is rejected).
-                if frame[0] == CMD_SIGN or self._status_key() != drawn:
+                # Repaint after a sign (clears the orange 'Signing' screen) or
+                # an authorize (shows the banner), and whenever state changed.
+                if (
+                    frame[0] in (CMD_SIGN, CMD_AUTHORIZE)
+                    or self._status_key() != drawn
+                ):
                     self._draw_status()
                     drawn = self._status_key()
             except Exception:
