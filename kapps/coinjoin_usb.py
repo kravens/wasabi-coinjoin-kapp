@@ -494,37 +494,41 @@ class CoinJoinSigner(Page):
         drawn = self._status_key()
         while True:
             auto_shutdown.feed()
-            if self.ctx.input.wait_for_button(block=False) is not None:
-                self.ctx.display.clear()
-                if self.prompt(
-                    _t("Exit remote signing?"), self.ctx.display.height() // 2
-                ):
-                    return
-                self._draw_status()
-                drawn = self._status_key()
-                continue
+            # Only an explicit Back-confirm ends the session; every other error
+            # (display, link desync, a rejected request) is contained so the
+            # app never drops back to the menu unexpectedly.
             try:
+                if self.ctx.input.wait_for_button(block=False) is not None:
+                    self.ctx.display.clear()
+                    if self.prompt(
+                        _t("Exit remote signing?"), self.ctx.display.height() // 2
+                    ):
+                        return
+                    self._draw_status()
+                    drawn = self._status_key()
+                    continue
                 frame = link.read_frame(50)
-            except Exception:
-                continue
-            if frame is None:
-                if self.authorized:
-                    self._pulse += 1
-                    self._draw_logo()  # breathe while idle between rounds
-                continue
-            try:
-                response = _OK + self._dispatch(frame)
-            except Exception as e:
-                response = _ERR + str(e).encode()
-            try:
+                if frame is None:
+                    if self.authorized:
+                        self._pulse += 1
+                        self._draw_logo()  # breathe while idle between rounds
+                    continue
+                try:
+                    response = _OK + self._dispatch(frame)
+                except Exception as e:
+                    response = _ERR + str(e).encode()
                 link.write_frame(response)
+                # Always repaint after a sign so the orange 'Signing' screen
+                # clears (even when a sign is rejected).
+                if frame[0] == CMD_SIGN or self._status_key() != drawn:
+                    self._draw_status()
+                    drawn = self._status_key()
             except Exception:
-                pass
-            # Always repaint after a sign so the orange 'Signing' screen clears
-            # (even when a sign is rejected and the counter did not move).
-            if frame[0] == CMD_SIGN or self._status_key() != drawn:
-                self._draw_status()
-                drawn = self._status_key()
+                try:
+                    self._draw_status()
+                    drawn = self._status_key()
+                except Exception:
+                    pass
 
     def _status_key(self):
         return (self.authorized, self.rounds_used, self.max_rounds)
