@@ -537,32 +537,33 @@ class CoinJoinSigner(Page):
             disp.draw_hcentered_text(
                 _t("CoinJoin Authorized"), 2, theme.bg_color, theme.go_color
             )
-            # Wasabi "W" logo, centered, ~1/3 screen wide; breathes in _serve.
-            cell = max(1, disp.width() // 3 // _LOGO_W)
-            x0 = (disp.width() - cell * _LOGO_W) // 2
-            y0 = STATUS_BAR_HEIGHT + FONT_HEIGHT // 2
-            self._logo = (cell, x0, y0)
-            self._draw_logo()
-            body = "\n".join(
-                [
-                    key.fingerprint_hex_str(True),
-                    key.derivation_str(True),
-                    _t("Rounds") + ": %d/%d" % (self.rounds_used, self.max_rounds),
-                    _t("Back"),
-                ]
-            )
-            disp.draw_hcentered_text(body, y0 + cell * _LOGO_H + FONT_HEIGHT)
+            top = STATUS_BAR_HEIGHT
+            footer = [
+                key.fingerprint_hex_str(True),
+                key.derivation_str(True),
+                _t("Rounds") + ": %d/%d" % (self.rounds_used, self.max_rounds),
+                _t("Back"),
+            ]
         else:
-            self._logo = None
-            body = "\n".join(
-                [
-                    NAME,
-                    key.fingerprint_hex_str(True),
-                    _t("Waiting for authorization"),
-                    _t("Back"),
-                ]
-            )
-            disp.draw_hcentered_text(body, STATUS_BAR_HEIGHT + FONT_HEIGHT)
+            disp.draw_hcentered_text(NAME, 2)
+            top = FONT_HEIGHT + 4
+            footer = [
+                key.fingerprint_hex_str(True),
+                # From the device's view the host is what we wait on: Wasabi
+                # must connect and propose the policy before we can authorize.
+                _t("Waiting for Wasabi Wallet"),
+                _t("Back"),
+            ]
+        # Wasabi "W" logo, centered ~1/3 screen wide. Static+dim while waiting,
+        # breathing once authorized (_serve pulses it).
+        cell = max(1, disp.width() // 3 // _LOGO_W)
+        x0 = (disp.width() - cell * _LOGO_W) // 2
+        y0 = top + FONT_HEIGHT // 2
+        self._logo = (cell, x0, y0)
+        self._draw_logo()
+        disp.draw_hcentered_text(
+            "\n".join(footer), y0 + cell * _LOGO_H + FONT_HEIGHT
+        )
 
     def _draw_logo(self):
         """Draws the Wasabi logo at the current breathing intensity, in the
@@ -573,12 +574,15 @@ class CoinJoinSigner(Page):
         from krux.themes import theme
 
         cell, x0, y0 = self._logo
-        # triangle wave 0.30..1.0 over a ~2s period at ~20 idle ticks/s
-        period = 40
-        phase = self._pulse % period
-        half = period // 2
-        tri = phase if phase < half else (period - phase)
-        intensity = 0.30 + 0.70 * (tri / half)
+        if self.authorized:
+            # triangle wave 0.30..1.0 over a ~2s period at ~20 idle ticks/s
+            period = 40
+            phase = self._pulse % period
+            half = period // 2
+            tri = phase if phase < half else (period - phase)
+            intensity = 0.30 + 0.70 * (tri / half)
+        else:
+            intensity = 0.45  # static, dim, while waiting for Wasabi
         color = _lerp_color(theme.bg_color, theme.highlight_color, intensity)
         disp = self.ctx.display
         for r in range(_LOGO_H):
