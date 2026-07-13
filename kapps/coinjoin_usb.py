@@ -431,6 +431,37 @@ def _t(text):
         return text
 
 
+# Official Wasabi "W" logo rasterized (viewBox 75x57) to a 50x38 grid of
+# horizontal on-pixel runs [col, length] per row. Shown while authorized so it
+# reads unambiguously as Wasabi coinjoin (not another protocol). Generated
+# offline from the SVG so the device does no rasterization at runtime.
+_LOGO_W = 50
+_LOGO_H = 38
+_LOGO_RUNS = [[[8,1],[28,1],[40,10]],[[6,3],[26,3],[40,10]],[[4,5],[24,5],[40,10]],[[3,6],[23,6],[40,10]],[[1,9],[21,8],[40,10]],[[0,10],[20,10],[40,10]],[[0,10],[20,10],[40,10]],[[1,9],[21,9],[40,10]],[[1,10],[21,10],[40,10]],[[1,10],[21,10],[40,10]],[[2,10],[21,11]],[[2,10],[22,10]],[[2,11],[22,11]],[[3,10],[23,10]],[[3,11],[23,11]],[[4,10],[23,11]],[[4,11],[24,11]],[[4,11],[24,11]],[[5,11],[25,11]],[[6,43]],[[6,43]],[[7,42]],[[7,42]],[[8,41]],[[9,40]],[[9,40]],[[10,39]],[[11,13],[31,13]],[[12,13],[32,13]],[[13,14],[33,14]],[[14,14],[34,14]],[[15,14],[34,15]],[[16,12],[36,12]],[[17,10],[37,10]],[[18,8],[38,8]],[[19,6],[39,6]],[[20,4],[40,4]],[[22,1],[42,1]]]
+
+
+def _unpack565(color):
+    """Krux stores RGB565 byte-swapped; return (r, g, b) 5/6/5 bits."""
+    v = ((color & 0xFF) << 8) | (color >> 8)
+    return (v >> 11) & 0x1F, (v >> 5) & 0x3F, v & 0x1F
+
+
+def _pack565(r, g, b):
+    v = (r << 11) | (g << 5) | b
+    return ((v & 0xFF) << 8) | (v >> 8)
+
+
+def _lerp_color(c0, c1, t):
+    """Interpolate between two Krux colors; t in 0..1."""
+    r0, g0, b0 = _unpack565(c0)
+    r1, g1, b1 = _unpack565(c1)
+    return _pack565(
+        int(r0 + (r1 - r0) * t),
+        int(g0 + (g1 - g0) * t),
+        int(b0 + (b1 - b0) * t),
+    )
+
+
 class CoinJoinSigner(Page):
     """Serves host-authorized CoinJoin signing requests over USB."""
 
@@ -441,6 +472,8 @@ class CoinJoinSigner(Page):
         self.policy = None
         self.rounds_used = 0
         self.max_rounds = 0
+        self._pulse = 0  # phase for the breathing Wasabi logo
+        self._logo = None  # (cell_px, x0, y0) computed once per screen
 
     def run_signer(self):
         link = Link()
@@ -472,6 +505,9 @@ class CoinJoinSigner(Page):
             except Exception:
                 continue
             if frame is None:
+                if self.authorized:
+                    self._pulse += 1
+                    self._draw_logo()  # breathe while idle between rounds
                 continue
             try:
                 response = _OK + self._dispatch(frame)
@@ -489,24 +525,67 @@ class CoinJoinSigner(Page):
         return (self.authorized, self.rounds_used, self.max_rounds)
 
     def _draw_status(self):
+        from krux.themes import theme
+        from krux.display import FONT_HEIGHT, STATUS_BAR_HEIGHT
+
+        disp = self.ctx.display
         key = self.ctx.wallet.key
+        disp.clear()
         if self.authorized:
-            body = (
-                NAME + "\n"
-                + key.fingerprint_hex_str(True) + "\n"
-                + key.derivation_str(True) + "\n"
-                + _t("Rounds") + ": %d/%d\n" % (self.rounds_used, self.max_rounds)
-                + _t("Back")
+            # Trezor-style persistent banner while the session is authorized.
+            disp.fill_rectangle(0, 0, disp.width(), STATUS_BAR_HEIGHT, theme.go_color)
+            disp.draw_hcentered_text(
+                _t("CoinJoin Authorized"), 2, theme.bg_color, theme.go_color
             )
+            # Wasabi "W" logo, centered, ~1/3 screen wide; breathes in _serve.
+            cell = max(1, disp.width() // 3 // _LOGO_W)
+            x0 = (disp.width() - cell * _LOGO_W) // 2
+            y0 = STATUS_BAR_HEIGHT + FONT_HEIGHT // 2
+            self._logo = (cell, x0, y0)
+            self._draw_logo()
+            body = "\n".join(
+                [
+                    key.fingerprint_hex_str(True),
+                    key.derivation_str(True),
+                    _t("Rounds") + ": %d/%d" % (self.rounds_used, self.max_rounds),
+                    _t("Back"),
+                ]
+            )
+            disp.draw_hcentered_text(body, y0 + cell * _LOGO_H + FONT_HEIGHT)
         else:
-            body = (
-                NAME + "\n"
-                + key.fingerprint_hex_str(True) + "\n"
-                + _t("Waiting for authorization") + "\n"
-                + _t("Back")
+            self._logo = None
+            body = "\n".join(
+                [
+                    NAME,
+                    key.fingerprint_hex_str(True),
+                    _t("Waiting for authorization"),
+                    _t("Back"),
+                ]
             )
-        self.ctx.display.clear()
-        self.ctx.display.draw_centered_text(body)
+            disp.draw_hcentered_text(body, STATUS_BAR_HEIGHT + FONT_HEIGHT)
+
+    def _draw_logo(self):
+        """Draws the Wasabi logo at the current breathing intensity, in the
+        user's theme accent color. Only the lit pixels are repainted, so this
+        is cheap enough to call between USB polls."""
+        if not self._logo:
+            return
+        from krux.themes import theme
+
+        cell, x0, y0 = self._logo
+        # triangle wave 0.30..1.0 over a ~2s period at ~20 idle ticks/s
+        period = 40
+        phase = self._pulse % period
+        half = period // 2
+        tri = phase if phase < half else (period - phase)
+        intensity = 0.30 + 0.70 * (tri / half)
+        color = _lerp_color(theme.bg_color, theme.highlight_color, intensity)
+        disp = self.ctx.display
+        for r in range(_LOGO_H):
+            for start, length in _LOGO_RUNS[r]:
+                disp.fill_rectangle(
+                    x0 + start * cell, y0 + r * cell, length * cell, cell, color
+                )
 
     def _dispatch(self, frame):
         cmd = frame[0]
@@ -598,7 +677,11 @@ class CoinJoinSigner(Page):
 
     def _sign_round(self, body):
         if self.max_rounds and self.rounds_used >= self.max_rounds:
-            raise ValueError("round budget exhausted")
+            # Authorization is spent: end the session so the host must
+            # re-propose the policy and the user re-approves it on the device.
+            self.authorized = False
+            self.policy = None
+            raise ValueError("round budget exhausted, re-authorize")
         signer = CoinJoinPSBTSigner(self.ctx.wallet, body, FORMAT_NONE)
         signer.sign_coinjoin(self.policy)
         self.rounds_used += 1
