@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 560" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#7ee787"/>
+    </marker>
+    <marker id="arrb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#79c0ff"/>
+    </marker>
+  </defs>
+
+  <!-- canvas -->
+  <rect x="0" y="0" width="980" height="560" rx="14" fill="#161b22"/>
+  <text x="490" y="42" text-anchor="middle" fill="#e6edf3" font-size="22" font-weight="700">Installing and using the Wasabi CoinJoin kapp</text>
+
+  <!-- ============ COMPUTER (left) ============ -->
+  <g>
+    <rect x="40" y="90" width="300" height="400" rx="12" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+    <text x="190" y="122" text-anchor="middle" fill="#e6edf3" font-size="17" font-weight="700">Computer</text>
+
+    <!-- monitor -->
+    <rect x="115" y="140" width="150" height="95" rx="8" fill="#21262d" stroke="#8b949e" stroke-width="2"/>
+    <rect x="125" y="150" width="130" height="75" rx="4" fill="#0d1117"/>
+    <!-- Wasabi-ish W on screen -->
+    <path d="M150 165 l12 45 l14 -32 l14 32 l12 -45" fill="none" stroke="#7ee787" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="175" y="235" width="30" height="12" fill="#21262d"/>
+    <rect x="145" y="247" width="90" height="8" rx="4" fill="#30363d"/>
+
+    <!-- step 1 -->
+    <circle cx="70" cy="292" r="13" fill="#7ee787"/>
+    <text x="70" y="297" text-anchor="middle" fill="#0d1117" font-size="14" font-weight="700">1</text>
+    <text x="92" y="290" fill="#e6edf3" font-size="14" font-weight="600">Build &amp; sign the app</text>
+    <text x="92" y="308" fill="#8b949e" font-size="12.5">./build_kapp.sh  →  coinjoin_usb.mpy + .sig</text>
+
+    <!-- step 4 -->
+    <circle cx="70" cy="352" r="13" fill="#79c0ff"/>
+    <text x="70" y="357" text-anchor="middle" fill="#0d1117" font-size="14" font-weight="700">4</text>
+    <text x="92" y="350" fill="#e6edf3" font-size="14" font-weight="600">Run the kruxd bridge</text>
+    <text x="92" y="368" fill="#8b949e" font-size="12.5">python kruxd.py COM8</text>
+
+    <!-- step 5 -->
+    <circle cx="70" cy="412" r="13" fill="#79c0ff"/>
+    <text x="70" y="417" text-anchor="middle" fill="#0d1117" font-size="14" font-weight="700">5</text>
+    <text x="92" y="410" fill="#e6edf3" font-size="14" font-weight="600">Coinjoin in Wasabi Wallet</text>
+    <text x="92" y="428" fill="#8b949e" font-size="12.5">set max rounds / max fee / min self-transfer,</text>
+    <text x="92" y="444" fill="#8b949e" font-size="12.5">then start coinjoin</text>
+  </g>
+
+  <!-- ============ SD CARD (middle top) ============ -->
+  <g>
+    <rect x="415" y="90" width="180" height="185" rx="12" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+    <text x="505" y="122" text-anchor="middle" fill="#e6edf3" font-size="17" font-weight="700">microSD</text>
+
+    <!-- sd card icon -->
+    <path d="M475 140 h45 l15 15 v55 a5 5 0 0 1 -5 5 h-55 a5 5 0 0 1 -5 -5 v-65 a5 5 0 0 1 5 -5 z" fill="#21262d" stroke="#8b949e" stroke-width="2"/>
+    <rect x="480" y="147" width="6" height="12" fill="#8b949e"/>
+    <rect x="490" y="147" width="6" height="12" fill="#8b949e"/>
+    <rect x="500" y="147" width="6" height="12" fill="#8b949e"/>
+    <rect x="510" y="147" width="6" height="12" fill="#8b949e"/>
+    <text x="502" y="196" text-anchor="middle" fill="#7ee787" font-size="9.5" font-family="monospace">.mpy + .sig</text>
+
+    <!-- step 2 -->
+    <circle cx="445" cy="235" r="13" fill="#7ee787"/>
+    <text x="445" y="240" text-anchor="middle" fill="#0d1117" font-size="14" font-weight="700">2</text>
+    <text x="466" y="233" fill="#e6edf3" font-size="14" font-weight="600">Copy both files</text>
+    <text x="466" y="251" fill="#8b949e" font-size="12.5">onto the card</text>
+  </g>
+
+  <!-- ============ KRUX / WonderMV (right) ============ -->
+  <g>
+    <rect x="640" y="90" width="300" height="400" rx="12" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+    <text x="790" y="122" text-anchor="middle" fill="#e6edf3" font-size="17" font-weight="700">Krux (WonderMV)</text>
+
+    <!-- device -->
+    <rect x="715" y="140" width="150" height="100" rx="10" fill="#21262d" stroke="#8b949e" stroke-width="2"/>
+    <rect x="727" y="152" width="100" height="76" rx="4" fill="#0d1117"/>
+    <!-- camera lens -->
+    <circle cx="847" cy="190" r="12" fill="#0d1117" stroke="#8b949e" stroke-width="2"/>
+    <circle cx="847" cy="190" r="5" fill="#30363d"/>
+    <!-- screen text -->
+    <text x="777" y="182" text-anchor="middle" fill="#7ee787" font-size="10" font-family="monospace">CoinJoin</text>
+    <text x="777" y="196" text-anchor="middle" fill="#7ee787" font-size="10" font-family="monospace">Authorized</text>
+    <!-- sd slot -->
+    <rect x="708" y="165" width="7" height="26" rx="2" fill="#30363d" stroke="#8b949e" stroke-width="1"/>
+
+    <!-- step 3 -->
+    <circle cx="670" cy="277" r="13" fill="#7ee787"/>
+    <text x="670" y="282" text-anchor="middle" fill="#0d1117" font-size="14" font-weight="700">3</text>
+    <text x="692" y="275" fill="#e6edf3" font-size="14" font-weight="600">Insert card &amp; install</text>
+    <text x="692" y="293" fill="#8b949e" font-size="12.5">Tools › Krux Apps › Load from SD card</text>
+    <text x="692" y="309" fill="#8b949e" font-size="12.5">device verifies the signature, then</text>
+    <text x="692" y="325" fill="#8b949e" font-size="12.5">open the app and load your wallet</text>
+
+    <!-- step 6 -->
+    <circle cx="670" cy="362" r="13" fill="#79c0ff"/>
+    <text x="670" y="367" text-anchor="middle" fill="#0d1117" font-size="14" font-weight="700">6</text>
+    <text x="692" y="360" fill="#e6edf3" font-size="14" font-weight="600">Approve on the device</text>
+    <text x="692" y="378" fill="#8b949e" font-size="12.5">check the limits on this screen — it is</text>
+    <text x="692" y="394" fill="#8b949e" font-size="12.5">the part you trust. Rounds then sign</text>
+    <text x="692" y="410" fill="#8b949e" font-size="12.5">hands-free within those limits; when the</text>
+    <text x="692" y="426" fill="#8b949e" font-size="12.5">budget is spent, approval is asked again</text>
+  </g>
+
+  <!-- ============ arrows: sneakernet (green, top) ============ -->
+  <path d="M345 185 H410" stroke="#7ee787" stroke-width="2.5" fill="none" marker-end="url(#arr)"/>
+  <path d="M600 185 H635" stroke="#7ee787" stroke-width="2.5" fill="none" marker-end="url(#arr)"/>
+
+  <!-- ============ arrow: USB (blue, bottom) ============ -->
+  <path d="M190 525 V495" stroke="#79c0ff" stroke-width="2.5" fill="none" marker-end="url(#arrb)"/>
+  <path d="M790 525 V495" stroke="#79c0ff" stroke-width="2.5" fill="none" marker-end="url(#arrb)"/>
+  <path d="M190 525 H790" stroke="#79c0ff" stroke-width="2.5" fill="none"/>
+  <rect x="393" y="510" width="194" height="30" rx="6" fill="#161b22"/>
+  <text x="490" y="530" text-anchor="middle" fill="#79c0ff" font-size="13.5" font-weight="600">USB cable · kruxd bridge</text>
+
+  <!-- legend -->
+  <text x="490" y="70" text-anchor="middle" fill="#8b949e" font-size="13">
+    <tspan fill="#7ee787" font-weight="700">green</tspan> = one-time install via SD card&#160;&#160;·&#160;&#160;<tspan fill="#79c0ff" font-weight="700">blue</tspan> = every coinjoin session over USB
+  </text>
+</svg>

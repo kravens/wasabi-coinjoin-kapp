@@ -13,6 +13,8 @@ those limits. Anything else is refused by the device itself.
 > regtest), but every part of the chain is still on unreleased branches.
 > Do not point it at mainnet funds yet.
 
+![How the pieces fit: build & sign on the computer, carry the app over on a microSD card, install and approve on the Krux, then coinjoin over USB](docs/install-flow.svg)
+
 ---
 
 ## What you need
