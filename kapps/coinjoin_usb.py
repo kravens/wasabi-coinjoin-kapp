@@ -462,6 +462,9 @@ def _lerp_color(c0, c1, t):
     )
 
 
+_ORANGE = _pack565(31, 41, 0)  # signing-state accent, independent of theme
+
+
 class CoinJoinSigner(Page):
     """Serves host-authorized CoinJoin signing requests over USB."""
 
@@ -517,7 +520,9 @@ class CoinJoinSigner(Page):
                 link.write_frame(response)
             except Exception:
                 pass
-            if self._status_key() != drawn:
+            # Always repaint after a sign so the orange 'Signing' screen clears
+            # (even when a sign is rejected and the counter did not move).
+            if frame[0] == CMD_SIGN or self._status_key() != drawn:
                 self._draw_status()
                 drawn = self._status_key()
 
@@ -590,6 +595,35 @@ class CoinJoinSigner(Page):
                 disp.fill_rectangle(
                     x0 + start * cell, y0 + r * cell, length * cell, cell, color
                 )
+
+    def _draw_signing(self):
+        """Active-signing state: 'Signing' plus the W filling with orange from
+        the bottom up (a charging fill, not a pulse), then holding solid."""
+        if not self._logo:
+            return
+        from krux.themes import theme
+        from krux.display import FONT_HEIGHT, STATUS_BAR_HEIGHT
+
+        disp = self.ctx.display
+        cell, x0, y0 = self._logo
+        disp.clear()
+        disp.fill_rectangle(0, 0, disp.width(), STATUS_BAR_HEIGHT, _ORANGE)
+        disp.draw_hcentered_text(_t("Signing"), 2, theme.bg_color, _ORANGE)
+        dim = _lerp_color(theme.bg_color, _ORANGE, 0.25)
+        for r in range(_LOGO_H):
+            for start, length in _LOGO_RUNS[r]:
+                disp.fill_rectangle(
+                    x0 + start * cell, y0 + r * cell, length * cell, cell, dim
+                )
+        for r in range(_LOGO_H - 1, -1, -1):  # sweep orange up through the W
+            for start, length in _LOGO_RUNS[r]:
+                disp.fill_rectangle(
+                    x0 + start * cell, y0 + r * cell, length * cell, cell, _ORANGE
+                )
+        disp.draw_hcentered_text(
+            self.ctx.wallet.key.fingerprint_hex_str(True),
+            y0 + cell * _LOGO_H + FONT_HEIGHT,
+        )
 
     def _dispatch(self, frame):
         cmd = frame[0]
@@ -686,6 +720,7 @@ class CoinJoinSigner(Page):
             self.authorized = False
             self.policy = None
             raise ValueError("round budget exhausted, re-authorize")
+        self._draw_signing()  # orange 'Signing' state during the blocking sign
         signer = CoinJoinPSBTSigner(self.ctx.wallet, body, FORMAT_NONE)
         signer.sign_coinjoin(self.policy)
         self.rounds_used += 1
