@@ -589,6 +589,10 @@ class CoinJoinSigner(Page):
         else:
             intensity = 0.45  # static, dim, while waiting for Wasabi
         color = _lerp_color(theme.bg_color, theme.highlight_color, intensity)
+        self._paint_logo(cell, x0, y0, color)
+
+    def _paint_logo(self, cell, x0, y0, color):
+        """Fills the logo's lit pixels with one color at the given geometry."""
         disp = self.ctx.display
         for r in range(_LOGO_H):
             for start, length in _LOGO_RUNS[r]:
@@ -670,7 +674,20 @@ class CoinJoinSigner(Page):
                 _t("Min self-transfer %") + ": %d" % min_self_transfer_pct,
             ]
         )
-        self.ctx.display.clear()
+        from krux.themes import theme
+        from krux.display import FONT_HEIGHT
+
+        disp = self.ctx.display
+        disp.clear()
+        # Dim Wasabi logo in the lower area so the confirm screen is branded
+        # too. Drawn before the (blocking) Yes/No prompt, which paints its text
+        # near the top and does not clear, so the logo persists below it.
+        cell = max(1, disp.width() // 5 // _LOGO_W)
+        x0 = (disp.width() - cell * _LOGO_W) // 2
+        y0 = disp.height() - cell * _LOGO_H - FONT_HEIGHT
+        self._paint_logo(
+            cell, x0, y0, _lerp_color(theme.bg_color, theme.highlight_color, 0.40)
+        )
         if not self.prompt(proposal, self.ctx.display.height() // 5):
             raise ValueError("authorization declined")
 
