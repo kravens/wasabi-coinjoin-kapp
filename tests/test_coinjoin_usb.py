@@ -251,6 +251,42 @@ def test_authorize_then_sign(mocker, m5stickv):
     assert any(inp.partial_sigs for inp in PSBT.parse(signed).inputs)
 
 
+def test_authorize_extends_shutdown_grace(mocker, m5stickv):
+    # The approval prompt blocks the serve loop, so the inactivity auto-shutdown
+    # must be given a bounded grace before the (blocking) confirm.
+    from kapps import coinjoin_usb
+    from krux.auto_shutdown import auto_shutdown
+
+    signer = _signer(mocker)
+
+    def fake_prompt(*a, **k):
+        # at prompt time the countdown must be at least the grace window
+        assert auto_shutdown.time_out >= coinjoin_usb._AUTH_PROMPT_GRACE_S
+        return True
+
+    signer.prompt = fake_prompt
+
+    # short remaining countdown, enabled auto-shutdown -> bumped to grace
+    auto_shutdown.shutdown_time = 600
+    auto_shutdown.time_out = 5
+    signer._dispatch(_authorize_body())
+    assert signer.authorized
+
+    # a longer configured window is never shrunk
+    signer2 = _signer(mocker)
+    signer2.prompt = mocker.MagicMock(return_value=True)
+    auto_shutdown.shutdown_time = 6000
+    auto_shutdown.time_out = 6000
+    signer2._feed_auth_grace()
+    assert auto_shutdown.time_out == 6000
+
+    # disabled auto-shutdown -> no-op, no crash
+    auto_shutdown.shutdown_time = 0
+    auto_shutdown.time_out = 0
+    signer2._feed_auth_grace()
+    assert auto_shutdown.time_out == 0
+
+
 def test_authorization_declined(mocker, m5stickv):
     signer = _signer(mocker)
     signer.prompt = mocker.MagicMock(return_value=False)

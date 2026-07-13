@@ -480,6 +480,10 @@ _MIN_SAFE_SELF_TRANSFER = 50  # percent; below this a session could drain
 _MAX_SAFE_FEE_RATE = 250  # sat/vB; above this is congestion nobody coinjoins at
 _MAX_SAFE_ROUNDS = 500  # caps cumulative fee bleed across a session
 
+# Bounded grace (seconds) for the user to physically approve an authorization
+# before the inactivity auto-shutdown may power the device off.
+_AUTH_PROMPT_GRACE_S = 300
+
 
 def _t(text):
     try:
@@ -752,6 +756,17 @@ class CoinJoinSigner(Page):
         if not self.authorized:
             raise ValueError("session not authorized")
 
+    def _feed_auth_grace(self):
+        """Extend the inactivity auto-shutdown countdown to a bounded grace for
+        a physical-approval prompt, never shrinking a longer configured window.
+        No-op when auto-shutdown is disabled."""
+        try:
+            from krux.auto_shutdown import auto_shutdown
+        except Exception:
+            return
+        if getattr(auto_shutdown, "shutdown_time", 0):
+            auto_shutdown.time_out = max(auto_shutdown.time_out, _AUTH_PROMPT_GRACE_S)
+
     def _authorize(self, body):
         if len(body) < 5:
             raise ValueError("short authorization")
@@ -795,6 +810,12 @@ class CoinJoinSigner(Page):
         self._paint_logo(
             cell, x0, y0, _lerp_color(theme.bg_color, theme.highlight_color, 0.40)
         )
+        # The approval prompt blocks, so the serve loop's auto_shutdown.feed()
+        # pauses here. Give the user a bounded grace to physically approve
+        # (never shorter than their configured window) so the inactivity timer
+        # can't power the device off mid-prompt - but still bounded, so an
+        # abandoned prompt does eventually shut down.
+        self._feed_auth_grace()
         if not self.prompt(proposal, self.ctx.display.height() // 5):
             raise ValueError("authorization declined")
 

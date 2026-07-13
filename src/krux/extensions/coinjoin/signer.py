@@ -40,6 +40,7 @@ Wire protocol (one request frame -> one response frame):
                           + min_self_transfer_pct(1)
                           -> () ; shows the proposal, waits for physical confirm
 """
+
 from embit import bip32, script
 
 from krux.pages import Page, MENU_CONTINUE
@@ -64,6 +65,10 @@ _MAX_ROUNDS_CAP = 0xFFFF
 _MIN_SAFE_SELF_TRANSFER = 50  # percent; below this a session could drain
 _MAX_SAFE_FEE_RATE = 250  # sat/vB; above this is congestion nobody coinjoins at
 _MAX_SAFE_ROUNDS = 500  # caps cumulative fee bleed across a session
+
+# Bounded grace (seconds) for the user to physically approve an authorization
+# before the inactivity auto-shutdown may power the device off.
+_AUTH_PROMPT_GRACE_S = 300
 
 
 def _t(text):
@@ -141,17 +146,24 @@ class CoinJoinSigner(Page):
         key = self.ctx.wallet.key
         if self.authorized:
             body = (
-                _t("CoinJoin") + " USB\n"
-                + key.fingerprint_hex_str(True) + "\n"
-                + key.derivation_str(True) + "\n"
-                + _t("Rounds") + ": %d/%d\n" % (self.rounds_used, self.max_rounds)
+                _t("CoinJoin")
+                + " USB\n"
+                + key.fingerprint_hex_str(True)
+                + "\n"
+                + key.derivation_str(True)
+                + "\n"
+                + _t("Rounds")
+                + ": %d/%d\n" % (self.rounds_used, self.max_rounds)
                 + _t("Back")
             )
         else:
             body = (
-                _t("CoinJoin") + " USB\n"
-                + key.fingerprint_hex_str(True) + "\n"
-                + _t("Waiting for authorization") + "\n"
+                _t("CoinJoin")
+                + " USB\n"
+                + key.fingerprint_hex_str(True)
+                + "\n"
+                + _t("Waiting for authorization")
+                + "\n"
                 + _t("Back")
             )
         self.ctx.display.clear()
@@ -179,6 +191,17 @@ class CoinJoinSigner(Page):
     def _require_authorized(self):
         if not self.authorized:
             raise ValueError("session not authorized")
+
+    def _feed_auth_grace(self):
+        """Extend the inactivity auto-shutdown countdown to a bounded grace for
+        a physical-approval prompt, never shrinking a longer configured window.
+        No-op when auto-shutdown is disabled."""
+        try:
+            from krux.auto_shutdown import auto_shutdown
+        except Exception:
+            return
+        if getattr(auto_shutdown, "shutdown_time", 0):
+            auto_shutdown.time_out = max(auto_shutdown.time_out, _AUTH_PROMPT_GRACE_S)
 
     def _authorize(self, body):
         """Shows the host-proposed policy and waits for physical approval."""
@@ -211,6 +234,9 @@ class CoinJoinSigner(Page):
             ]
         )
         self.ctx.display.clear()
+        # Bounded grace so the inactivity auto-shutdown can't power the device
+        # off while the user is at the physical-approval prompt.
+        self._feed_auth_grace()
         if not self.prompt(proposal, self.ctx.display.height() // 5):
             raise ValueError("authorization declined")
 
@@ -243,8 +269,7 @@ class CoinJoinSigner(Page):
         if len(body) < 2 + 4 * path_len:
             raise ValueError("short derivation path")
         path = [
-            int.from_bytes(body[2 + 4 * i : 6 + 4 * i], "big")
-            for i in range(path_len)
+            int.from_bytes(body[2 + 4 * i : 6 + 4 * i], "big") for i in range(path_len)
         ]
         commitment = body[2 + 4 * path_len :]
         if not commitment:
