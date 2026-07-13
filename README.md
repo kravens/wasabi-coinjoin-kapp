@@ -1,50 +1,38 @@
-# Krux CoinJoin / Batch-Signing USB extension
+# Krux CoinJoin / Batch-Signing USB — a Krux App (kapp)
 
 Pre-approved **remote signing over USB** for [Krux](https://github.com/selfcustody/krux):
 SLIP-19 ownership proofs and policy-checked PSBT signing, for WabiSabi coinjoin
-rounds and for plain batched (multi-wallet) transactions. Pairs with
+rounds and plain batched (multi-wallet) transactions. Pairs with
 [Wasabi Wallet `feature/krux-coinjoin`](https://github.com/kravens/WalletWasabi/tree/feature/krux-coinjoin)
 and the [kruxd](https://github.com/kravens/coinjoin.nl/tree/main/kruxd) bridge.
 
-Shipped as a **self-contained extension** — it adds one Sign-menu entry and
-edits no core Krux module, so it applies cleanly on top of any recent Krux
-version (and leaves the "coinjoin" vocabulary out of the official tree).
+Built as a **signed Krux App (kapp)** on the apps framework from
+[selfcustody/krux#485](https://github.com/selfcustody/krux/pull/485)
+(`tadeubas/krux` branch `kapps`). Distributed via
+[selfcustody/kapps](https://github.com/selfcustody/kapps) with a PGP signature
+and SHA256 of the released `.mpy`.
 
-## Why an extension
+## The kapp
 
-The official Krux repo keeps coinjoin terminology out of the codebase. This
-add-on keeps all of it in `krux/extensions/coinjoin/`:
+`kapps/coinjoin_usb.py` — one self-contained file per the #485 contract:
 
-- `slip19.py` — SLIP-19/21 proofs, self-contained (no methods added to `Key`)
-- `psbt_coinjoin.py` — `CoinJoinPSBTSigner`, a subclass of the stock
-  `PSBTSigner` (skips the single-wallet homogeneity check; validates and signs
-  only our own inputs; effective fee rate = leak / own (input+output) vbytes)
-- `signer.py` — the `CoinJoin USB` page and the USB command protocol
-- `link.py` — framed transport (UART on device, TCP on the simulator)
+- module attributes `VERSION`, `NAME`; entry point `run(ctx)`; `os.chdir("/")`
+  guard so no sibling flash module is imported
+- bundles the framed USB link, SLIP-19 proofs, and `CoinJoinPSBTSigner`
+  (a subclass of the stock `PSBTSigner` — skips the single-wallet homogeneity
+  check, validates/signs only our own inputs, effective fee rate =
+  leak / own (input+output) vbytes)
+- imports only from frozen Krux modules (`krux.psbt`, `krux.pages`,
+  `krux.sats_vb`) and `embit`
 
-The only core touch-point is a generic **extension registry + one Sign-menu
-line**, proposed to the official repo separately (`upstream-hooks/`) so future
-add-ons (e.g. Silent Payments) can reuse it. Until that lands, `apply.py`
-patches that one line as a fallback.
-
-## Install flow
-
-```
-git clone --recurse-submodules https://github.com/selfcustody/krux
-python krux-coinjoin-extension/apply.py ./krux     # copy + register + hook
-cd krux && ./krux build maixpy_wonder_mv           # or any supported device
-# flash as usual (ktool)
-```
-
-`apply.py` is idempotent: copies the package, installs the registry if absent,
-records the extension as installed, and applies the fallback Sign-menu hook
-only when the upstream hook isn't present.
+No core Krux files are modified — the app plugs into the #485 apps loader
+(`Tools > Krux Apps`, gated by the `allow_kapp` setting).
 
 ## Host-proposed policy (Trezor-style)
 
-There is **no device settings menu** to configure before loading a seed. The
-signing policy is proposed by the wallet software and approved physically on
-the device, once per session:
+No device settings menu to configure before loading a seed. The wallet software
+proposes the policy and the user approves it physically on the device, once per
+session:
 
 ```
 CMD_AUTHORIZE  max_rounds, max_fee_rate_sat_vb, min_self_transfer_pct
@@ -57,8 +45,30 @@ CMD_INFO       fingerprint, rounds used/max, authorized flag
 Frames are `MAGIC("KXJ1") + u32 length + payload`; the reader resyncs to the
 magic so device boot-console noise can't be misread as a frame.
 
+## Build, sign, install
+
+```
+./build_kapp.sh /path/to/krux-kapps-checkout  signer_privkey.pem
+# -> dist/coinjoin_usb.mpy, coinjoin_usb.mpy.sig, coinjoin_usb.sha256
+```
+
+Copy the `.mpy` + `.mpy.sig` to the device (SD or flash). The device verifies
+the signature against its trusted `SIGNER_PUBKEY`. On the device: enable
+`allow_kapp`, load a wallet, then `Tools > Krux Apps > CoinJoin USB`.
+
 ## Tests
 
-`tests/test_coinjoin_extension.py` runs inside a patched Krux checkout (uses
-Krux's own conftest fixtures). See `apply.py` output for where it lands; run
-with `PYTHONPATH=src pytest tests/test_coinjoin_extension.py`.
+`tests/test_coinjoin_usb.py` runs inside the kapps-branch tree (copied to
+`tests/kapps/`), using its `create_ctx` helper and Krux's `m5stickv` fixture:
+
+```
+cp tests/test_coinjoin_usb.py <krux-kapps>/tests/kapps/
+cp kapps/coinjoin_usb.py       <krux-kapps>/kapps/
+cd <krux-kapps> && PYTHONPATH=src pytest tests/kapps/test_coinjoin_usb.py
+```
+
+## Pre-#485 build-time extension (superseded)
+
+`src/krux/extensions/`, `apply.py`, and `upstream-hooks/` are the earlier
+build-time-frozen extension approach, kept for history. The kapp above is the
+current path now that #485 provides the apps framework.
