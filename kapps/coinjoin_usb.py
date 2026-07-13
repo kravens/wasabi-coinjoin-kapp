@@ -606,10 +606,17 @@ class CoinJoinSigner(Page):
 
 
 def run(ctx):
-    """Kapp entry point: serve USB coinjoin signing for the loaded wallet."""
+    """Kapp entry point: serve USB coinjoin signing.
+
+    Kapps launch from the pre-login Tools menu, so no wallet is loaded yet.
+    Run the standard Load-Mnemonic flow (seed source + network/script choice),
+    which sets ctx.wallet, then serve. The chosen account must match the
+    watch-only wallet imported into Wasabi.
+    """
     if not getattr(ctx, "wallet", None) or ctx.wallet.key is None:
-        ctx.display.clear()
-        ctx.display.draw_centered_text(_t("Load a wallet first"))
-        ctx.input.wait_for_button()
-        return
+        from krux.pages.login import Login
+
+        Login(ctx).load_key()
+    if not getattr(ctx, "wallet", None) or ctx.wallet.key is None:
+        return  # user cancelled loading
     CoinJoinSigner(ctx).run_signer()
