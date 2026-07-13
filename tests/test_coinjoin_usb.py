@@ -287,6 +287,34 @@ def test_authorize_extends_shutdown_grace(mocker, m5stickv):
     assert auto_shutdown.time_out == 0
 
 
+def test_single_press_exit_when_waiting(mocker, m5stickv):
+    # No session to protect while waiting: one press exits, no confirm prompt.
+    signer = _signer(mocker)
+    link = mocker.MagicMock()
+    link.read_frame.return_value = None
+    signer.ctx.input.wait_for_button = mocker.MagicMock(return_value=1)
+    prompt = mocker.patch.object(signer, "prompt")
+
+    signer._serve(link)  # returns on the first press
+
+    assert not prompt.called
+
+
+def test_exit_confirm_required_when_authorized(mocker, m5stickv):
+    # An active session must not die to an accidental press: confirm required.
+    signer = _signer(mocker)
+    signer.authorized = True
+    signer.max_rounds = 3
+    link = mocker.MagicMock()
+    link.read_frame.return_value = None
+    signer.ctx.input.wait_for_button = mocker.MagicMock(return_value=1)
+    prompt = mocker.patch.object(signer, "prompt", return_value=True)
+
+    signer._serve(link)
+
+    assert prompt.called
+
+
 def test_authorization_declined(mocker, m5stickv):
     signer = _signer(mocker)
     signer.prompt = mocker.MagicMock(return_value=False)

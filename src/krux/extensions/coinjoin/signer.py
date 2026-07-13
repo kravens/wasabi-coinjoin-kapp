@@ -113,6 +113,11 @@ class CoinJoinSigner(Page):
             # timer reboot the device between rounds.
             auto_shutdown.feed()
             if self.ctx.input.wait_for_button(block=False) is not None:
+                # While merely waiting there is no session to protect: a single
+                # press exits. Confirm only when a signing session is active,
+                # so an accidental press can't kill it.
+                if not self.authorized:
+                    return
                 self.ctx.display.clear()
                 if self.prompt(
                     _t("Exit remote signing?"), self.ctx.display.height() // 2
