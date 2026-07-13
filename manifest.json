@@ -12,7 +12,7 @@
   "distribution": {
     "target": "https://github.com/selfcustody/kapps",
     "framework_pr": "https://github.com/selfcustody/krux/pull/485",
-    "signing": "PGP signature + SHA256 of released .mpy, verified on-device against the dedicated kapp signer key (KAPP_SIGNER_PUBKEY)",
+    "signing": "PGP signature + SHA256 of released .mpy, verified on-device against the dedicated kapp signer keys (KAPP_SIGNER_PUBKEYS)",
     "note": "Primary form is the signed kapp (kapps/coinjoin_usb.mpy). The src/krux/extensions package is a fallback for build-time freezing into firmware where the kapps framework is unavailable."
   }
 }

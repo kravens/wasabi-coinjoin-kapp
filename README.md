@@ -55,9 +55,10 @@ magic so device boot-console noise can't be misread as a frame.
 ```
 
 Copy the `.mpy` + `.mpy.sig` to the device (SD or flash). The device verifies
-the signature against its trusted kapp signer key (`KAPP_SIGNER_PUBKEY` on the
-hardened kapps branch, distinct from the firmware signer key). On the device:
-enable `allow_kapp`, load a wallet, then `Tools > Krux Apps > CoinJoin USB`.
+the signature against its trusted kapp signer keys (`KAPP_SIGNER_PUBKEYS` on
+the hardened kapps branch — multiple maintainer keys supported, distinct from
+the firmware signer key). On the device: enable `allow_kapp`, load a wallet,
+then `Tools > Krux Apps > CoinJoin USB`.
 
 ## Tests
 
