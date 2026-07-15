@@ -162,6 +162,7 @@ not just coinjoins.
 | `src/krux/extensions/`, `apply.py` | older approach (app baked into firmware); superseded by the kapp, kept for reference |
 
 ## Roadmap
+<img width="21%" height="21%" alt="image" src="https://github.com/user-attachments/assets/61739388-c862-4735-86c6-9789fa852abc" />
 
 - [x] End-to-end on real hardware: authorize → sign live coinjoin rounds → budget exhausted → re-authorize
 - [ ] Kapps framework merged into official Krux ([#485](https://github.com/selfcustody/krux/pull/485))
